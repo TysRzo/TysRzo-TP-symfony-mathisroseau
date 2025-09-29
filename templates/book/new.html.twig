@@ -1,11 +1,16 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}New Book{% endblock %}
+{% block title %}Créer un livre{% endblock %}
 
 {% block body %}
-    <h1>Create new Book</h1>
+    <h1>Créer un livre</h1>
 
-    {{ include('book/_form.html.twig') }}
-
-    <a href="{{ path('app_book_index') }}">back to list</a>
+    {{ form_start(form) }}
+    {{ form_row(form.title) }}
+    {{ form_row(form.author) }}
+    {{ form_row(form.description) }}
+    {{ form_row(form.genre) }}
+    {{ form_row(form.coverImage) }}
+    <button class="btn btn-primary">Enregistrer</button>
+    {{ form_end(form) }}
 {% endblock %}

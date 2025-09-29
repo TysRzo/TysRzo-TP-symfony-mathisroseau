@@ -1,47 +1,61 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Book index{% endblock %}
+{% block title %}Liste des livres{% endblock %}
 
 {% block body %}
-    <h1>Book index</h1>
+    <h1>Liste des livres</h1>
 
-    <table class="table">
+    {% for label, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="alert alert-{{ label }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    <table class="table table-striped">
         <thead>
-            <tr>
-                <th>Id</th>
-                <th>Title</th>
-                <th>Author</th>
-                <th>Description</th>
-                <th>Genre</th>
-                <th>CoverImage</th>
-                <th>CreatedAt</th>
-                <th>UpdateAt</th>
-                <th>actions</th>
-            </tr>
+        <tr>
+            <th>Titre</th>
+            <th>Auteur</th>
+            <th>Description</th>
+            <th>Genre</th>
+            <th>Couverture</th>
+            <th>Créé le</th>
+            <th>Mis à jour le</th>
+            <th>Actions</th>
+        </tr>
         </thead>
         <tbody>
         {% for book in books %}
             <tr>
-                <td>{{ book.id }}</td>
                 <td>{{ book.title }}</td>
                 <td>{{ book.author }}</td>
                 <td>{{ book.description }}</td>
                 <td>{{ book.genre }}</td>
-                <td>{{ book.coverImage }}</td>
-                <td>{{ book.createdAt ? book.createdAt|date('Y-m-d H:i:s') : '' }}</td>
-                <td>{{ book.updateAt ? book.updateAt|date('Y-m-d H:i:s') : '' }}</td>
                 <td>
-                    <a href="{{ path('app_book_show', {'id': book.id}) }}">show</a>
-                    <a href="{{ path('app_book_edit', {'id': book.id}) }}">edit</a>
+                    {% if book.coverImage %}
+                        <img src="{{ asset('uploads/covers/' ~ book.coverImage) }}" alt="Cover" style="height: 50px;">
+                    {% endif %}
+                </td>
+                <td>{{ book.createdAt ? book.createdAt|date('Y-m-d H:i:s') : '' }}</td>
+                <td>{{ book.updatedAt ? book.updatedAt|date('Y-m-d H:i:s') : '' }}</td>
+                <td>
+                    <a href="{{ path('book_edit', {'id': book.id}) }}" class="btn btn-sm btn-primary">Edit</a>
+                    <form action="{{ path('book_delete', {'id': book.id}) }}" method="post" style="display:inline-block;" onsubmit="return confirm('Êtes-vous sûr ?');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ book.id) }}">
+                        <button class="btn btn-sm btn-danger">Delete</button>
+                    </form>
                 </td>
             </tr>
         {% else %}
             <tr>
-                <td colspan="9">no records found</td>
+                <td colspan="8">Aucun livre trouvé.</td>
             </tr>
         {% endfor %}
         </tbody>
     </table>
 
-    <a href="{{ path('app_book_new') }}">Create new</a>
+    <a href="{{ path('book_new') }}" class="btn btn-success">Créer un nouveau livre</a>
+
 {% endblock %}

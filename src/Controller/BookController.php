@@ -4,78 +4,92 @@ namespace App\Controller;
 
 use App\Entity\Book;
 use App\Form\BookType;
-use App\Repository\BookRepository;
+use App\Service\FileUploader;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Annotation\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 
 #[Route('/book')]
-final class BookController extends AbstractController
+class BookController extends AbstractController
 {
-    #[Route(name: 'app_book_index', methods: ['GET'])]
-    public function index(BookRepository $bookRepository): Response
+    public function __construct(private EntityManagerInterface $em, private FileUploader $fileUploader) {}
+
+    #[Route('/', name: 'book_index')]
+    public function index(): Response
     {
-        return $this->render('book/index.html.twig', [
-            'books' => $bookRepository->findAll(),
-        ]);
+        $books = $this->getUser() ? $this->getUser()->getBooks() : [];
+        return $this->render('book/index.html.twig', ['books' => $books]);
     }
 
-    #[Route('/new', name: 'app_book_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, EntityManagerInterface $entityManager): Response
+    #[Route('/new', name: 'book_new')]
+    #[IsGranted('ROLE_USER')]
+    public function new(Request $request): Response
     {
         $book = new Book();
         $form = $this->createForm(BookType::class, $book);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->persist($book);
-            $entityManager->flush();
+            $coverFile = $form->get('coverImage')->getData();
+            if ($coverFile) {
+                $filename = $this->fileUploader->upload($coverFile);
+                $book->setCoverImage($filename);
+            }
 
-            return $this->redirectToRoute('app_book_index', [], Response::HTTP_SEE_OTHER);
+            $book->setUser($this->getUser());
+            $this->em->persist($book);
+            $this->em->flush();
+
+            $this->addFlash('success', 'Livre créé avec succès !');
+            return $this->redirectToRoute('book_index');
         }
 
-        return $this->render('book/new.html.twig', [
-            'book' => $book,
-            'form' => $form,
-        ]);
+        return $this->render('book/new.html.twig', ['form' => $form->createView()]);
     }
 
-    #[Route('/{id}', name: 'app_book_show', methods: ['GET'])]
-    public function show(Book $book): Response
+    #[Route('/{id}/edit', name: 'book_edit')]
+    #[IsGranted('ROLE_USER')]
+    public function edit(Book $book, Request $request): Response
     {
-        return $this->render('book/show.html.twig', [
-            'book' => $book,
-        ]);
-    }
+        if ($book->getUser() !== $this->getUser()) {
+            throw $this->createAccessDeniedException('Vous ne pouvez pas modifier ce livre.');
+        }
 
-    #[Route('/{id}/edit', name: 'app_book_edit', methods: ['GET', 'POST'])]
-    public function edit(Request $request, Book $book, EntityManagerInterface $entityManager): Response
-    {
         $form = $this->createForm(BookType::class, $book);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->flush();
+            $coverFile = $form->get('coverImage')->getData();
+            if ($coverFile) {
+                $filename = $this->fileUploader->upload($coverFile);
+                $book->setCoverImage($filename);
+            }
 
-            return $this->redirectToRoute('app_book_index', [], Response::HTTP_SEE_OTHER);
+            $this->em->flush();
+            $this->addFlash('success', 'Livre mis à jour avec succès !');
+            return $this->redirectToRoute('book_index');
         }
 
-        return $this->render('book/edit.html.twig', [
-            'book' => $book,
-            'form' => $form,
-        ]);
+        return $this->render('book/edit.html.twig', ['form' => $form->createView(), 'book' => $book]);
     }
 
-    #[Route('/{id}', name: 'app_book_delete', methods: ['POST'])]
-    public function delete(Request $request, Book $book, EntityManagerInterface $entityManager): Response
+    #[Route('/{id}/delete', name: 'book_delete', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(Book $book, Request $request): Response
     {
-        if ($this->isCsrfTokenValid('delete'.$book->getId(), $request->getPayload()->getString('_token'))) {
-            $entityManager->remove($book);
-            $entityManager->flush();
+        if ($book->getUser() !== $this->getUser()) {
+            throw $this->createAccessDeniedException('Vous ne pouvez pas supprimer ce livre.');
         }
 
-        return $this->redirectToRoute('app_book_index', [], Response::HTTP_SEE_OTHER);
+        if ($this->isCsrfTokenValid('delete'.$book->getId(), $request->request->get('_token'))) {
+            $this->em->remove($book);
+            $this->em->flush();
+            $this->addFlash('success', 'Livre supprimé avec succès !');
+        }
+
+        return $this->redirectToRoute('book_index');
     }
 }
