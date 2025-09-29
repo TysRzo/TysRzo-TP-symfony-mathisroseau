@@ -10,25 +10,35 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use Sensio\Bundle\FrameworkExtraBundle\Configuration\IsGranted;
 
-#[Route('/book')]
+#[Route('/books')]
 class BookController extends AbstractController
 {
-    public function __construct(private EntityManagerInterface $em, private FileUploader $fileUploader) {}
+    private EntityManagerInterface $em;
+
+    public function __construct(EntityManagerInterface $em, private FileUploader $fileUploader)
+    {
+        $this->em = $em;
+    }
 
     #[Route('/', name: 'book_index')]
     public function index(): Response
     {
-        $books = $this->getUser() ? $this->getUser()->getBooks() : [];
-        return $this->render('book/index.html.twig', ['books' => $books]);
+        $books = $this->getUser()->getRoles()[0] === 'ROLE_ADMIN'
+            ? $this->em->getRepository(Book::class)->findAll()
+            : $this->em->getRepository(Book::class)->findBy(['user' => $this->getUser()]);
+
+        return $this->render('book/index.html.twig', [
+            'books' => $books,
+        ]);
     }
 
     #[Route('/new', name: 'book_new')]
-    #[IsGranted('ROLE_USER')]
     public function new(Request $request): Response
     {
         $book = new Book();
+        $book->setUser($this->getUser());
+
         $form = $this->createForm(BookType::class, $book);
         $form->handleRequest($request);
 
@@ -39,24 +49,26 @@ class BookController extends AbstractController
                 $book->setCoverImage($filename);
             }
 
-            $book->setUser($this->getUser());
+            $book->getCreatedAt(new \DateTimeImmutable());
+            $book->getUpdatedAt(new \DateTimeImmutable());
+
             $this->em->persist($book);
             $this->em->flush();
 
             $this->addFlash('success', 'Livre créé avec succès !');
+
             return $this->redirectToRoute('book_index');
         }
 
-        return $this->render('book/new.html.twig', ['form' => $form->createView()]);
+        return $this->render('book/new.html.twig', [
+            'form' => $form->createView(),
+        ]);
     }
 
     #[Route('/{id}/edit', name: 'book_edit')]
-    #[IsGranted('ROLE_USER')]
-    public function edit(Book $book, Request $request): Response
+    public function edit(Request $request, Book $book): Response
     {
-        if ($book->getUser() !== $this->getUser()) {
-            throw $this->createAccessDeniedException('Vous ne pouvez pas modifier ce livre.');
-        }
+        $this->denyAccessUnlessGranted('EDIT', $book);
 
         $form = $this->createForm(BookType::class, $book);
         $form->handleRequest($request);
@@ -68,21 +80,24 @@ class BookController extends AbstractController
                 $book->setCoverImage($filename);
             }
 
+            $book->setUpdatedAt(new \DateTimeImmutable());
+
             $this->em->flush();
-            $this->addFlash('success', 'Livre mis à jour avec succès !');
+            $this->addFlash('success', 'Livre modifié avec succès !');
+
             return $this->redirectToRoute('book_index');
         }
 
-        return $this->render('book/edit.html.twig', ['form' => $form->createView(), 'book' => $book]);
+        return $this->render('book/edit.html.twig', [
+            'form' => $form->createView(),
+            'book' => $book,
+        ]);
     }
 
     #[Route('/{id}/delete', name: 'book_delete', methods: ['POST'])]
-    #[IsGranted('ROLE_USER')]
-    public function delete(Book $book, Request $request): Response
+    public function delete(Request $request, Book $book): Response
     {
-        if ($book->getUser() !== $this->getUser()) {
-            throw $this->createAccessDeniedException('Vous ne pouvez pas supprimer ce livre.');
-        }
+        $this->denyAccessUnlessGranted('DELETE', $book);
 
         if ($this->isCsrfTokenValid('delete'.$book->getId(), $request->request->get('_token'))) {
             $this->em->remove($book);

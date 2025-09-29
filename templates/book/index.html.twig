@@ -35,17 +35,19 @@
                 <td>{{ book.genre }}</td>
                 <td>
                     {% if book.coverImage %}
-                        <img src="{{ asset('uploads/covers/' ~ book.coverImage) }}" alt="Cover" style="height: 50px;">
+                        <img src="{{ asset('uploads/covers/' ~ book.coverImage) }}" alt="Cover" style="height:50px;">
                     {% endif %}
                 </td>
                 <td>{{ book.createdAt ? book.createdAt|date('Y-m-d H:i:s') : '' }}</td>
                 <td>{{ book.updatedAt ? book.updatedAt|date('Y-m-d H:i:s') : '' }}</td>
                 <td>
-                    <a href="{{ path('book_edit', {'id': book.id}) }}" class="btn btn-sm btn-primary">Edit</a>
-                    <form action="{{ path('book_delete', {'id': book.id}) }}" method="post" style="display:inline-block;" onsubmit="return confirm('Êtes-vous sûr ?');">
-                        <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ book.id) }}">
-                        <button class="btn btn-sm btn-danger">Delete</button>
-                    </form>
+                    {% if book.user == app.user or is_granted('ROLE_ADMIN') %}
+                        <a href="{{ path('book_edit', {'id': book.id}) }}" class="btn btn-sm btn-primary">Edit</a>
+                        <form action="{{ path('book_delete', {'id': book.id}) }}" method="post" style="display:inline-block;" onsubmit="return confirm('Êtes-vous sûr ?');">
+                            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ book.id) }}">
+                            <button class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    {% endif %}
                 </td>
             </tr>
         {% else %}
